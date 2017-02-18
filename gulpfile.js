@@ -7,12 +7,14 @@ const gulp = require('gulp');
 const del = require('del');
 const runSequence = require('run-sequence');
 const PolymerProject = require('polymer-build').PolymerProject;
+const HtmlSplitter = require('polymer-build').HtmlSplitter;
 const mergeStream = require('merge-stream');
 const browserSync = require('browser-sync').create();
 const historyApiFallback = require('connect-history-api-fallback');
 const $ = require('gulp-load-plugins')();
 const cordova = require("cordova-lib").cordova;
 const autoprefixer = require('autoprefixer');
+const cssnano = require('cssnano');
 
 const distDir = 'build';
 const appDir = 'www';
@@ -29,11 +31,8 @@ gulp.task('clean', function() {
     ]);
 });
 
-const cssProcessors = [
-    autoprefixer({browsers: ['last 2 versions']})
-];
-
 function buildPolymer(project, develop) {
+    const splitter = new HtmlSplitter();
     const sources = project.sources()
         .pipe($.if(['index.html', 'app.html'], $.useref()))
         .pipe($.if('elements/app-shell.html', $.template({
@@ -41,26 +40,25 @@ function buildPolymer(project, develop) {
         })));
 
     let stream = mergeStream(sources, project.dependencies())
-        .pipe(project.splitHtml());
+        .pipe(project.bundler);
 
-    if(!develop) {
-        stream = stream.pipe($.if(/\.html$/, $.htmlPostcss(cssProcessors)))
+    if (!develop) {
+        stream = stream
+            .pipe(splitter.split())
+            .pipe($.if(/\.html$/, $.htmlmin({
+                collapseWhitespace: true,
+                removeComments: true
+            })))
+            .pipe($.if(/\.html$/, $.htmlPostcss([
+                autoprefixer({ browsers: ['last 2 versions'] }),
+                cssnano()
+            ])))
             .pipe($.if(['elements/**/*.js'], $.babel()))
-            .pipe($.if(function(file) {
-                return path.extname(file.path) === '.js' && file.contents.toString().indexOf('@polymerBehavior') === -1;
-            }, $.uglify({ preserveComments: 'license' })));
+            .pipe($.if(/\.js$/, $.uglify({ preserveComments: 'license' })))
+            .pipe(splitter.rejoin());
     }
 
-    stream = stream.pipe(project.rejoinHtml());
-
-    if(!develop) {
-        stream = stream.pipe($.if(/\.html$/, $.htmlmin({
-            collapseWhitespace: true,
-            removeComments: true
-        })));
-    }
-
-    return stream.pipe(project.bundler);
+    return stream;
 }
 
 gulp.task('polymer', function () {
