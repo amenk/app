@@ -54,9 +54,7 @@ function buildPolymer(project, develop) {
                 cssnano()
             ])))
             .pipe($.if(['elements/**/*.js'], $.babel()))
-            .pipe($.if(function(file) {
-                return path.extname(file.path) === '.js' && file.contents.toString().indexOf('@polymerBehavior') === -1;
-            }, $.uglify({ preserveComments: 'license' })))
+            .pipe($.if(/\.js$/, $.uglify({ preserveComments: 'license' })))
             .pipe(splitter.rejoin());
     }
 
