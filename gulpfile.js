@@ -32,18 +32,18 @@ gulp.task('clean', function() {
 });
 
 function buildPolymer(project, develop) {
-    const splitter = new HtmlSplitter();
     const sources = project.sources()
         .pipe($.if(['index.html', 'app.html'], $.useref()))
         .pipe($.if('elements/app-shell.html', $.template({
             ENV: process.env
         })));
 
-    let stream = mergeStream(sources, project.dependencies())
+    const splitter = new HtmlSplitter();
+    const stream = mergeStream(sources, project.dependencies())
         .pipe(project.bundler);
 
-    if (!develop) {
-        stream = stream
+    return !develop ?
+        stream
             .pipe(splitter.split())
             .pipe($.if(/\.html$/, $.htmlmin({
                 collapseWhitespace: true,
@@ -55,10 +55,8 @@ function buildPolymer(project, develop) {
             ])))
             .pipe($.if(['elements/**/*.js'], $.babel()))
             .pipe($.if(/\.js$/, $.uglify({ preserveComments: 'license' })))
-            .pipe(splitter.rejoin());
-    }
-
-    return stream;
+            .pipe(splitter.rejoin()) :
+        stream;
 }
 
 function serve(directories) {
